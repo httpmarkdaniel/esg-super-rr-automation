@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>RR Consolidation Portal</title>
+
+  <style>
+    :root {
+      font-family: Inter, system-ui, Arial, sans-serif;
+      color: #161616;
+      background: #f4f5f7;
+    }
+
+    body {
+      margin: 0;
+    }
+
+    .wrap {
+      max-width: 1500px;
+      margin: 48px auto;
+      padding: 0 20px;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 3px 14px #0000000d;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+    }
+
+    .muted {
+      color: #666;
+    }
+
+    .drop {
+      margin: 22px 0;
+      border: 2px dashed #aaa;
+      border-radius: 12px;
+      padding: 36px;
+      text-align: center;
+      background: #fafafa;
+    }
+
+    button {
+      border: 0;
+      border-radius: 9px;
+      padding: 11px 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .primary {
+      background: #111;
+      color: #fff;
+    }
+
+    .secondary {
+      background: #e9e9e9;
+      color: #111;
+    }
+
+    input[type=file] {
+      margin-bottom: 14px;
+    }
+
+    .status {
+      margin: 18px 0;
+      font-weight: 700;
+    }
+
+    .error {
+      color: #a11;
+    }
+
+    .ok {
+      color: #176b39;
+    }
+
+    .stats {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 18px 0;
+    }
+
+    .stat {
+      background: #f5f5f5;
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+
+    .stat b {
+      display: block;
+      font-size: 22px;
+    }
+
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 16px;
+    }
+
+    table {
+      width: 100%;
+      min-width: 1500px;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      padding: 10px;
+      border-bottom: 1px solid #e6e6e6;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f8f8f8;
+      white-space: nowrap;
+    }
+
+    td {
+      min-width: 110px;
+    }
+
+    td:nth-child(3) {
+      min-width: 250px;
+    }
+
+    td:nth-child(6) {
+      min-width: 220px;
+    }
+
+    td:nth-child(10),
+    td:nth-child(11) {
+      min-width: 180px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="wrap">
+
+    <div class="card">
+
+      <h1>RR Consolidation Portal</h1>
+
+      <div class="muted">
+        Upload one Receiving Report PDF.
+        Repeated item descriptions inside the same RR are consolidated automatically.
+      </div>
+
+      <div class="drop">
+
+        <input
+          id="file"
+          type="file"
+          accept="application/pdf"
+        />
+
+        <br />
+
+        <button
+          class="primary"
+          id="upload"
+        >
+          Upload & Consolidate
+        </button>
+
+      </div>
+
+
+      <div
+        id="status"
+        class="status"
+      ></div>
+
+
+      <div
+        id="result"
+        class="hidden"
+      >
+
+        <div class="stats">
+
+          <div class="stat">
+            <span>RR Number</span>
+            <b id="rr"></b>
+          </div>
+
+          <div class="stat">
+            <span>Raw Rows</span>
+            <b id="raw"></b>
+          </div>
+
+          <div class="stat">
+            <span>Unique Items</span>
+            <b id="unique"></b>
+          </div>
+
+          <div class="stat">
+            <span>Duplicates Collapsed</span>
+            <b id="collapsed"></b>
+          </div>
+
+        </div>
+
+
+        <div class="table-wrap">
+
+          <table>
+
+            <thead>
+              <tr>
+                <th>RR Number</th>
+                <th>Account Name</th>
+                <th>Billing Address</th>
+                <th>Company Name</th>
+                <th>Received Date</th>
+                <th>Description</th>
+                <th>Net Weight</th>
+                <th>Category</th>
+                <th>Order Type</th>
+                <th>Remarks</th>
+                <th>Receiving Notes</th>
+              </tr>
+            </thead>
+
+            <tbody id="rows"></tbody>
+
+          </table>
+
+        </div>
+
+
+        <div class="actions">
+
+          <a href="/api/rr/export.csv">
+
+            <button class="secondary">
+              Download CSV
+            </button>
+
+          </a>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <script>
+
+    const $ = id => document.getElementById(id);
+
+
+    $('upload').onclick = async () => {
+
+      const file = $('file').files[0];
+
+
+      if (!file) {
+
+        $('status').className = 'status error';
+
+        $('status').textContent =
+          'Choose a PDF first.';
+
+        return;
+
+      }
+
+
+      $('status').className = 'status';
+
+      $('status').textContent =
+        'Processing RR...';
+
+      $('result').classList.add('hidden');
+
+
+      const form = new FormData();
+
+      form.append('file', file);
+
+
+      try {
+
+        const res = await fetch(
+          '/api/rr/parse',
+          {
+            method: 'POST',
+            body: form
+          }
+        );
+
+
+        const data = await res.json();
+
+
+        if (!res.ok) {
+
+          throw new Error(
+            JSON.stringify(
+              data.detail || data
+            )
+          );
+
+        }
+
+
+        $('status').className =
+          'status ok';
+
+        $('status').textContent =
+          'Extraction and consolidation complete.';
+
+
+        $('rr').textContent =
+          data.rr_number || '—';
+
+        $('raw').textContent =
+          data.raw_line_item_count ?? 0;
+
+        $('unique').textContent =
+          data.consolidated_item_count ?? 0;
+
+        $('collapsed').textContent =
+          data.duplicates_collapsed ?? 0;
+
+
+        $('rows').innerHTML = '';
+
+
+        for (const r of data.items) {
+
+          const tr =
+            document.createElement('tr');
+
+
+          tr.innerHTML = `
+            <td>${r.rr_number ?? ''}</td>
+            <td>${r.account_name ?? ''}</td>
+            <td>${r.billing_address ?? ''}</td>
+            <td>${r.company_name ?? ''}</td>
+            <td>${r.received_date ?? ''}</td>
+            <td>${r.description ?? ''}</td>
+            <td>${r.net_weight ?? ''}</td>
+            <td>${r.category ?? ''}</td>
+            <td>${r.order_type ?? ''}</td>
+            <td>${r.remarks ?? ''}</td>
+            <td>${r.receiving_notes ?? ''}</td>
+          `;
+
+
+          $('rows').appendChild(tr);
+
+        }
+
+
+        $('result').classList.remove(
+          'hidden'
+        );
+
+      }
+
+      catch (err) {
+
+        console.error(err);
+
+        $('status').className =
+          'status error';
+
+        $('status').textContent =
+          'Failed: ' + err.message;
+
+      }
+
+    };
+
+  </script>
+
+</body>
+
+</html>
